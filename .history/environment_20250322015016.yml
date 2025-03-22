@@ -1,0 +1,28 @@
+name: pytui
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.8
+  - pip
+  - click>=8.0.0  # For CLI functionality
+  - pip:
+    - textual>=0.9.0  # For building the TUI
+    - rich>=12.0.0    # For pretty logging and formatting
+    - pygraphviz      # For call graph rendering
+    # Development dependencies
+    - pytest>=7.0.0   # For testing
+    - black           # For code formatting
+    - isort           # For import sorting
+    - flake8          # For linting
+    - mypy            # For type checking
+    - pre-commit      # For pre-commit hooks
+    - coverage        # For test coverage
+    - pytest-cov      # For test coverage
+    - pytest-mock     # For mocking in tests
+    - pytest-xdist    # For parallel testing
+    - pytest-timeout  # For test timeouts
+    - pytest-sugar    # For pretty test output
+    - pytest-asyncio  # For asyncio tests
+    - pytest-asyncio-network-simulator  # For asyncio network tests
+    - pytest-asyncio-threaded  # For asyncio threaded tests

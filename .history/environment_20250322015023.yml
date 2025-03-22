@@ -1,0 +1,18 @@
+name: pytui
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.8
+  - pip
+  - click>=8.0.0  # For CLI functionality
+  - pip:
+    - textual>=0.9.0  # For building the TUI
+    - rich>=12.0.0    # For pretty logging and formatting
+    - pygraphviz      # For call graph rendering
+    # Development dependencies
+    - pytest>=7.0.0   # For testing
+    - black           # For code formatting
+    - isort           # For import sorting
+    - flake8          # For linting
+    - mypy            # For type checking
