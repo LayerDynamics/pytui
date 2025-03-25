@@ -204,50 +204,38 @@ def trace_function(frame, event, arg):
     function_name = frame.f_code.co_name
     is_internal = _should_skip_file(filename)
 
+    # Always update call stack for call events
     if event == "call":
         _call_stack.append(_get_call_id())
-        # For internal files, skip tracing
+        # For internal files, only return trace_function to maintain chain
         if is_internal:
-            return None
+            return trace_function
+
         try:
             args_dict = _get_function_args(frame)
-            call_event = CallEvent(function_name, filename, frame.f_lineno, args_dict)
             collector.add_call(
-                call_event.function_name,
-                call_event.filename,
-                call_event.line_no,
-                call_event.args
+                function_name,
+                filename,
+                frame.f_lineno,
+                args_dict
             )
             return trace_function
         except (ValueError, TypeError, AttributeError) as e:
             print(f"Error in call event: {e}")
             return trace_function
 
-    # For non-call events, skip if internal
+    # For internal files, skip other events
     if is_internal:
         return None
 
     try:
         if event == "return":
             call_id = _call_stack.pop() if _call_stack else 0
-            return_event = ReturnEvent(function_name, arg, call_id)
-            collector.add_return(
-                return_event.function_name, 
-                return_event.return_value,
-                call_id=return_event.call_id
-            )
+            collector.add_return(function_name, arg, call_id=call_id)
         elif event == "exception":
-            _, exc_value, traceback = arg
-            exception_event = ExceptionEvent(
-                exception_type=type(exc_value),
-                message=str(exc_value),
-                traceback=traceback
-            )
-            # Remove the 'message' keyword argument to match collector.add_exception signature
-            collector.add_exception(
-                exc_value,
-                traceback=exception_event.traceback
-            )
+            exc_type, exc_value, tb = arg
+            # Pass only the required arguments
+            collector.add_exception(exc_value)
     except (ValueError, TypeError, AttributeError) as e:
         print(f"Error in trace_function: {e}")
 
@@ -464,7 +452,187 @@ def install_trace(collector=None, trace_path=None):
         trace_path: Path to file for IPC with parent process
     """
     _call_stack.clear()
-    _state.reset()
+    _state.reset()[{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "linter",
+	"code": "unused-import - W0611",
+	"severity": 8,
+	"message": "Unused CallEvent imported from pytui.collector",
+	"source": "pylint",
+	"startLineNumber": 12,
+	"startColumn": 1,
+	"endLineNumber": 12,
+	"endColumn": 1
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "linter",
+	"code": "unused-import - W0611",
+	"severity": 8,
+	"message": "Unused ReturnEvent imported from pytui.collector",
+	"source": "pylint",
+	"startLineNumber": 12,
+	"startColumn": 1,
+	"endLineNumber": 12,
+	"endColumn": 1
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "linter",
+	"code": "unused-import - W0611",
+	"severity": 8,
+	"message": "Unused ExceptionEvent imported from pytui.collector",
+	"source": "pylint",
+	"startLineNumber": 12,
+	"startColumn": 1,
+	"endLineNumber": 12,
+	"endColumn": 1
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "linter",
+	"code": "unused-variable - W0612",
+	"severity": 8,
+	"message": "Unused variable 'exc_type'",
+	"source": "pylint",
+	"startLineNumber": 236,
+	"startColumn": 12,
+	"endLineNumber": 236,
+	"endColumn": 12
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "linter",
+	"code": "unused-variable - W0612",
+	"severity": 8,
+	"message": "Unused variable 'tb'",
+	"source": "pylint",
+	"startLineNumber": 236,
+	"startColumn": 33,
+	"endLineNumber": 236,
+	"endColumn": 33
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "_generated_diagnostic_collection_name_#2",
+	"code": {
+		"value": "W0611:unused-import",
+		"target": {
+			"$mid": 1,
+			"path": "/en/latest/user_guide/messages/warning/unused-import.html",
+			"scheme": "https",
+			"authority": "pylint.readthedocs.io"
+		}
+	},
+	"severity": 4,
+	"message": "Unused CallEvent imported from pytui.collector",
+	"source": "Pylint",
+	"startLineNumber": 12,
+	"startColumn": 1,
+	"endLineNumber": 12,
+	"endColumn": 82
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "_generated_diagnostic_collection_name_#2",
+	"code": {
+		"value": "W0611:unused-import",
+		"target": {
+			"$mid": 1,
+			"path": "/en/latest/user_guide/messages/warning/unused-import.html",
+			"scheme": "https",
+			"authority": "pylint.readthedocs.io"
+		}
+	},
+	"severity": 4,
+	"message": "Unused ReturnEvent imported from pytui.collector",
+	"source": "Pylint",
+	"startLineNumber": 12,
+	"startColumn": 1,
+	"endLineNumber": 12,
+	"endColumn": 82
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "_generated_diagnostic_collection_name_#2",
+	"code": {
+		"value": "W0611:unused-import",
+		"target": {
+			"$mid": 1,
+			"path": "/en/latest/user_guide/messages/warning/unused-import.html",
+			"scheme": "https",
+			"authority": "pylint.readthedocs.io"
+		}
+	},
+	"severity": 4,
+	"message": "Unused ExceptionEvent imported from pytui.collector",
+	"source": "Pylint",
+	"startLineNumber": 12,
+	"startColumn": 1,
+	"endLineNumber": 12,
+	"endColumn": 82
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "_generated_diagnostic_collection_name_#2",
+	"code": {
+		"value": "W0612:unused-variable",
+		"target": {
+			"$mid": 1,
+			"path": "/en/latest/user_guide/messages/warning/unused-variable.html",
+			"scheme": "https",
+			"authority": "pylint.readthedocs.io"
+		}
+	},
+	"severity": 4,
+	"message": "Unused variable 'exc_type'",
+	"source": "Pylint",
+	"startLineNumber": 236,
+	"startColumn": 13,
+	"endLineNumber": 236,
+	"endColumn": 21
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "_generated_diagnostic_collection_name_#2",
+	"code": {
+		"value": "W0612:unused-variable",
+		"target": {
+			"$mid": 1,
+			"path": "/en/latest/user_guide/messages/warning/unused-variable.html",
+			"scheme": "https",
+			"authority": "pylint.readthedocs.io"
+		}
+	},
+	"severity": 4,
+	"message": "Unused variable 'tb'",
+	"source": "Pylint",
+	"startLineNumber": 236,
+	"startColumn": 34,
+	"endLineNumber": 236,
+	"endColumn": 36
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "linter",
+	"code": "line-too-long - C0301",
+	"severity": 4,
+	"message": "Line too long (103/100)",
+	"source": "pylint",
+	"startLineNumber": 270,
+	"startColumn": 1,
+	"endLineNumber": 270,
+	"endColumn": 1
+},{
+	"resource": "/Users/ryanoboyle/pytui/pytui/tracer.py",
+	"owner": "_generated_diagnostic_collection_name_#2",
+	"code": {
+		"value": "C0301:line-too-long",
+		"target": {
+			"$mid": 1,
+			"path": "/en/latest/user_guide/messages/convention/line-too-long.html",
+			"scheme": "https",
+			"authority": "pylint.readthedocs.io"
+		}
+	},
+	"severity": 2,
+	"message": "Line too long (103/100)",
+	"source": "Pylint",
+	"startLineNumber": 270,
+	"startColumn": 1,
+	"endLineNumber": 270,
+	"endColumn": 1
+}]
 
     if collector is None:
         collector = DataCollector()

@@ -206,9 +206,8 @@ def trace_function(frame, event, arg):
 
     if event == "call":
         _call_stack.append(_get_call_id())
-        # For internal files, skip tracing
         if is_internal:
-            return None
+            return None  # Changed: ignore internal call events
         try:
             args_dict = _get_function_args(frame)
             call_event = CallEvent(function_name, filename, frame.f_lineno, args_dict)
@@ -223,7 +222,6 @@ def trace_function(frame, event, arg):
             print(f"Error in call event: {e}")
             return trace_function
 
-    # For non-call events, skip if internal
     if is_internal:
         return None
 
@@ -237,17 +235,13 @@ def trace_function(frame, event, arg):
                 call_id=return_event.call_id
             )
         elif event == "exception":
-            _, exc_value, traceback = arg
+            _, exc_value, tb = arg
             exception_event = ExceptionEvent(
                 exception_type=type(exc_value),
                 message=str(exc_value),
-                traceback=traceback
+                traceback=tb
             )
-            # Remove the 'message' keyword argument to match collector.add_exception signature
-            collector.add_exception(
-                exc_value,
-                traceback=exception_event.traceback
-            )
+            collector.add_exception(exc_value)  # Removed extra keyword args
     except (ValueError, TypeError, AttributeError) as e:
         print(f"Error in trace_function: {e}")
 

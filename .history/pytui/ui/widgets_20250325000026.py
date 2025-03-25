@@ -1,30 +1,19 @@
 """UI widgets module"""
 
-import time
 import asyncio
-from typing import Dict, List, Optional, Any, Callable, Tuple, TypeVar, Deque
-from collections import deque
+from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 
-from textual.widgets import Button, Label, Static, Header
+from textual.widgets import (
+    Button, Label, Static, ScrollView, Header
+)
+from rich.console import Console
 from rich.text import Text
 from rich.spinner import Spinner
 from rich.panel import Panel
-from rich.table import Table, box
+from rich.progress import Progress, BarColumn, TextColumn
+from rich.table import Table
 from rich.layout import Layout
-
-from .widget_utils import (
-    ActiveFunctionHighlighter,
-    SearchableText,
-    CollapsibleMixin,
-    SPINNER_STYLES,
-    ensure_callable,
-)
-from .progress import ProgressBarWidget, SpinnerWidget, AnimatedSpinnerWidget
-
-# Types
-RenderableType = TypeVar("RenderableType")
-ROUNDED = box.ROUNDED
 
 # Make Chart import optional with a fallback implementation
 try:
@@ -140,6 +129,7 @@ class StatusBar(Static):
         self._stats.clear()
         self.refresh()
 
+    # Properties for compatibility
     @property
     def is_running(self):
         """Get the running state."""
@@ -149,6 +139,226 @@ class StatusBar(Static):
     def is_paused(self):
         """Get the paused state."""
         return self._is_paused
+
+
+class SearchableText:
+    """
+    Adds search functionality to text content.
+
+    This class keeps track of a search term, the matched line indices,
+    and a 'current match' pointer to allow highlighting the currently
+    active match differently from the others.
+    """
+
+    def __init__(self):
+        """Initialize the search functionality."""
+        self.search_term = ""
+        self.match_indices: List[int] = []
+        self.current_match: int = -1
+
+    def search(self, text_lines: List[str], search_term: str) -> List[int]:
+        """
+        Search for a term in text lines.
+
+        Args:
+            text_lines: List of text lines to search.
+            search_term: Term to search for.
+
+        Returns:
+            List of indices where matches were found.
+        """
+        self.search_term = search_term.lower()
+        self.match_indices = []
+        for i, line in enumerate(text_lines):
+            if self.search_term in line.lower():
+                self.match_indices.append(i)
+        self.current_match = 0 if self.match_indices else -1
+        return self.match_indices
+
+    def next_match(self) -> int:
+        """
+        Move to the next match.
+
+        Returns:
+            Index of the next match or -1 if no matches
+        """
+        if not self.match_indices:
+            return -1
+        self.current_match = (self.current_match + 1) % len(self.match_indices)
+        return self.match_indices[self.current_match]
+
+    def prev_match(self) -> int:
+        """
+        Move to the previous match.
+
+        Returns:
+            Index of the previous match or -1 if no matches
+        """
+        if not self.match_indices:
+            return -1
+        self.current_match = (self.current_match - 1) % len(self.match_indices)
+        return self.match_indices[self.current_match]
+
+    def highlight_matches(self, text_lines: List[str]) -> List[Text]:
+        """
+        Highlight matches in text lines.
+
+        Returns:
+            List of Text objects with highlights
+        """
+        result: List[Text] = []
+
+        # We'll use a special style for the active match vs. other matches
+        for i, line in enumerate(text_lines):
+            line_lower = line.lower()
+            start = 0
+            text = Text()
+
+            # Search for all occurrences of self.search_term in line
+            while True:
+                pos = line_lower.find(self.search_term, start)
+                if pos == -1:
+                    # No more matches in this line
+                    text.append(line[start:])
+                    break
+
+                # Add the text before the match
+                text.append(line[start:pos])
+
+                # Determine highlight style
+                if self.match_indices and i == self.match_indices[self.current_match]:
+                    highlight_style = "reverse yellow"
+                else:
+                    highlight_style = "yellow"
+
+                # Add highlighted match
+                text.append(
+                    line[pos : pos + len(self.search_term)], style=highlight_style
+                )
+
+                start = pos + len(self.search_term)
+
+            result.append(text)
+
+        return result
+
+
+class ActiveFunctionHighlighter:
+    """
+    Tracks and highlights the active function in the call graph.
+
+    This class assumes there's some kind of 'tree' structure with nodes
+    accessible by ID, and that each node can have its style changed.
+    """
+
+    def __init__(self):
+        """Initialize the highlighter."""
+        self.current_call_id: Optional[int] = None
+        self.previous_call_ids: List[int] = []
+        self.tree = None
+
+    def set_tree(self, tree: Any):
+        """
+        Set the tree widget to highlight nodes in.
+
+        Args:
+            tree: The tree-like structure containing nodes
+        """
+        self.tree = tree
+
+    def highlight_function(self, call_id: int):
+        """
+        Highlight a function by call ID.
+
+        Args:
+            call_id: The ID of the node (function call) to highlight
+        """
+        if not self.tree or not hasattr(self.tree, "nodes"):
+            return
+
+        # Reset previous highlights
+        self._reset_highlights()
+
+        # Add the new highlight
+        self.current_call_id = call_id
+        self._apply_highlight(call_id, "bold reverse green")
+
+    def _reset_highlights(self):
+        """Reset all highlighted nodes to normal style."""
+        if not self.tree:
+            return
+        if self.current_call_id and self.current_call_id in self.tree.nodes:
+            self._apply_highlight(self.current_call_id, "")
+        for call_id in self.previous_call_ids:
+            if call_id in self.tree.nodes:
+                self._apply_highlight(call_id, "")
+        # Clear tracking lists
+        self.previous_call_ids.append(self.current_call_id)
+        if len(self.previous_call_ids) > 10:
+            # Limit history length
+            self.previous_call_ids = self.previous_call_ids[-10:]
+        self.current_call_id = None
+
+    def _apply_highlight(self, call_id: int, style: str):
+        """Apply a style to a node."""
+        if call_id in self.tree.nodes:
+            node = self.tree.nodes[call_id]
+            if hasattr(node, "set_style"):
+                node.set_style(style)
+            elif hasattr(node, "_style"):
+                node._style = style
+
+
+class SpinnerWidget(Static):
+    """A spinner widget for showing progress."""
+
+    SPINNERS = ["dots", "line", "pulse", "dots2", "dots3"]
+
+    def __init__(self, text: str = "Working...", spinner_type: str = "dots"):
+        """
+        Initialize the spinner widget.
+
+        Args:
+            text: Text to display alongside the spinner
+            spinner_type: Type of spinner animation to use
+        """
+        super().__init__("")
+        self.text = text
+        self.spinner_type = spinner_type if spinner_type in self.SPINNERS else "dots"
+        self._running = False
+        self._task: Optional[asyncio.Task] = None
+
+    def render(self) -> RenderableType:
+        """Render the spinner."""
+        if not self._running:
+            return Text(f"{self.text} (stopped)")
+        spinner = Spinner(self.spinner_type, text=self.text)
+        return spinner
+
+    async def start(self):
+        """Start the spinner animation."""
+        self._running = True
+        self.refresh()
+        if self._task and not self._task.done():
+            self._task.cancel()
+        # Create a new refresh task
+        self._task = asyncio.create_task(self._refresh_spinner())
+
+    async def stop(self):
+        """Stop the spinner animation."""
+        self._running = False
+        self.refresh()
+        if self._task and not self._task.done():
+            self._task.cancel()
+
+    async def _refresh_spinner(self):
+        """Continuously refresh the spinner while running."""
+        try:
+            while self._running:
+                self.refresh()
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
 
 
 class CollapsiblePanel(Static):
@@ -166,36 +376,17 @@ class CollapsiblePanel(Static):
         self.title = title
         self.collapsed = collapsed
         self._content = ""
-        self._expand_callback = ensure_callable()
-        self._collapse_callback = ensure_callable()
-
-    @property
-    def expand_callback(self) -> Callable:
-        """Get expand callback."""
-        return self._expand_callback
-
-    @expand_callback.setter
-    def expand_callback(self, callback: Optional[Callable]):
-        """Set expand callback."""
-        self._expand_callback = ensure_callable(callback)
-
-    @property
-    def collapse_callback(self) -> Callable:
-        """Get collapse callback."""
-        return self._collapse_callback
-
-    @collapse_callback.setter
-    def collapse_callback(self, callback: Optional[Callable]):
-        """Set collapse callback."""
-        self._collapse_callback = ensure_callable(callback)
+        self.expand_callback: Optional[Callable] = None
+        self.collapse_callback: Optional[Callable] = None
 
     def render(self) -> RenderableType:
         """Render the panel."""
         if self.collapsed:
             title = f"[+] {self.title} (click to expand)"
             return Panel(Text(""), title=title, border_style="dim")
-        title = f"[-] {self.title} (click to collapse)"
-        return Panel(self._content, title=title)
+        else:
+            title = f"[-] {self.title} (click to collapse)"
+            return Panel(self._content, title=title)
 
     async def on_click(self):
         """
@@ -214,6 +405,102 @@ class CollapsiblePanel(Static):
         """Update the panel content."""
         self._content = content
         self.refresh()
+
+
+class ProgressBarWidget(Static):
+    """Progress bar widget for showing execution progress."""
+
+    def __init__(
+        self,
+        total: int = 100,
+        description: str = "Progress",
+        show_percentage: bool = True,
+        show_time: bool = True,
+    ):
+        """Initialize progress bar widget.
+
+        Args:
+            total: Total steps for completion
+            description: Description of the progress
+            show_percentage: Whether to show percentage
+            show_time: Whether to show elapsed time
+        """
+        super().__init__("")
+        self.total = total
+        self.description = description
+        self.show_percentage = show_percentage
+        self.show_time = show_time
+        self.completed = 0
+        self.start_time = time.time()
+        self._task: Optional[asyncio.Task] = None
+
+    def render(self) -> RenderableType:
+        """Render the progress bar."""
+        # Create a new progress bar each time
+        progress = Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(bar_width=None),
+            (
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%")
+                if self.show_percentage
+                else None
+            ),
+            TimeElapsedColumn() if self.show_time else None,
+        )
+
+        # Add the task and update completion
+        task_id = progress.add_task(self.description, total=self.total)
+        progress.update(task_id, completed=self.completed)
+
+        return progress
+
+    def update(self, completed: int, description: Optional[str] = None):
+        """Update progress completion."""
+        self.completed = min(completed, self.total)
+        if description:
+            self.description = description
+        self.refresh()
+
+    def increment(self, amount: int = 1):
+        """Increment progress by an amount."""
+        self.completed = min(self.completed + amount, self.total)
+        self.refresh()
+
+    def reset(self, total: Optional[int] = None, description: Optional[str] = None):
+        """Reset the progress bar."""
+        if total is not None:
+            self.total = total
+        if description is not None:
+            self.description = description
+        self.completed = 0
+        self.start_time = time.time()
+        self.refresh()
+
+    async def auto_pulse(self, interval: float = 0.2, pulse_size: int = 1):
+        """Automatically pulse the progress bar for indeterminate progress."""
+        if self._task and not self._task.done():
+            self._task.cancel()
+
+        async def _pulse():
+            try:
+                while True:
+                    # For indeterminate progress, we'll cycle the progress
+                    self.completed = (self.completed + pulse_size) % (self.total + 1)
+                    self.refresh()
+                    await asyncio.sleep(interval)
+            except asyncio.CancelledError:
+                pass
+
+        self._task = asyncio.create_task(_pulse())
+
+    async def stop_pulse(self):
+        """Stop the auto-pulse animation."""
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
 
 
 class MetricsWidget(Static):
@@ -240,8 +527,10 @@ class MetricsWidget(Static):
             value: Metric value
         """
         timestamp = time.time()
+
         if name not in self.metrics:
             self.metrics[name] = deque(maxlen=self.max_data_points)
+
         self.metrics[name].append((timestamp, value))
         self.last_update = timestamp
         self.refresh()
@@ -256,11 +545,13 @@ class MetricsWidget(Static):
         if not self.metrics:
             return Panel("No metrics collected", title="Metrics")
 
+        # Create a table for current values
         table = Table(title="Current Metrics", box=ROUNDED)
         table.add_column("Metric")
         table.add_column("Value")
         table.add_column("Change")
 
+        # Add metrics to table
         for name, values in self.metrics.items():
             if not values:
                 continue
@@ -280,6 +571,8 @@ class MetricsWidget(Static):
 
             table.add_row(name, f"{current:.2f}", change)
 
+        # For simplicity, we'll just show the table for now
+        # In a real implementation, we would add a chart of recent values
         return Panel(table, title="Execution Metrics")
 
 
@@ -404,7 +697,7 @@ class SearchBar(Static):
         self.regex_mode = False
         self.match_count = 0
         self.current_match = 0
-        self.search_callback = ensure_callable()
+        self.search_callback: Optional[Callable[[str, bool, bool], None]] = None
 
     def activate(self):
         """Activate the search bar."""
@@ -540,6 +833,7 @@ class VariableInspectorWidget(Static):
         # Auto-select if this is the first function
         if self.selected_function is None:
             self.selected_function = function_name
+
         self.refresh()
 
     def select_function(self, function_name: str):
@@ -582,6 +876,7 @@ class VariableInspectorWidget(Static):
                 title="Variable Inspector [+]",
             )
 
+        # Render variables in a table
         table = Table(box=ROUNDED)
         table.add_column("Variable")
         table.add_column("Value")
@@ -591,13 +886,16 @@ class VariableInspectorWidget(Static):
             var_type = type(var_value).__name__
             value_str = str(var_value)
 
+            # Truncate long values
             if len(value_str) > 50:
                 value_str = value_str[:47] + "..."
 
             table.add_row(var_name, value_str, var_type)
 
+        # Create a panel with function selector and variables
         function_selector = Text("Function: ")
 
+        # Add all functions with the selected one highlighted
         for i, func_name in enumerate(self.variables.keys()):
             if i > 0:
                 function_selector.append(" | ")
@@ -613,20 +911,184 @@ class VariableInspectorWidget(Static):
         return Panel(layout, title="Variable Inspector [-]")
 
 
-class CollapsibleWidget(CollapsibleMixin):
-    """A widget that can be collapsed/expanded."""
+class AnimatedSpinnerWidget(Static):
+    """Enhanced spinner widget with richer animation options."""
+
+    SPINNERS = {
+        "dots": {
+            "frames": ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+            "interval": 0.08,
+        },
+        "line": {"frames": ["-", "\\", "|", "/"], "interval": 0.1},
+        "pulse": {
+            "frames": [
+                "[    ]",
+                "[=   ]",
+                "[==  ]",
+                "[=== ]",
+                "[ ===]",
+                "[  ==]",
+                "[   =]",
+                "[    ]",
+                "[   =]",
+                "[  ==]",
+                "[ ===]",
+                "[====]",
+                "[=== ]",
+                "[==  ]",
+                "[=   ]",
+            ],
+            "interval": 0.1,
+        },
+        "dots2": {"frames": ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"], "interval": 0.08},
+        "dots3": {"frames": ["⣷", "⣯", "⣟", "⡿", "⢿", "⣻", "⣽", "⣾"], "interval": 0.08},
+        "clock": {
+            "frames": [
+                "🕛",
+                "🕐",
+                "🕑",
+                "🕒",
+                "🕓",
+                "🕔",
+                "🕕",
+                "🕖",
+                "🕗",
+                "🕘",
+                "🕙",
+                "🕚",
+            ],
+            "interval": 0.1,
+        },
+        "moon": {
+            "frames": ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"],
+            "interval": 0.1,
+        },
+        "bounce": {"frames": ["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"], "interval": 0.1},
+    }
 
     def __init__(
-        self, collapse_callback: Callable = None, expand_callback: Callable = None
+        self,
+        text: str = "Working...",
+        spinner_type: str = "dots",
+        show_elapsed: bool = True,
     ):
-        super().__init__(collapse_callback, expand_callback)
+        """Initialize the animated spinner widget.
+
+        Args:
+            text: Text to display alongside the spinner
+            spinner_type: Type of spinner animation to use
+            show_elapsed: Whether to show elapsed time
+        """
+        super().__init__("")
+        self.text = text
+        self.show_elapsed = show_elapsed
+
+        # Get spinner configuration
+        if spinner_type in self.SPINNERS:
+            self.spinner_config = self.SPINNERS[spinner_type]
+        else:
+            self.spinner_config = self.SPINNERS["dots"]
+
+        self.current_frame = 0
+        self._running = False
+        self._task: Optional[asyncio.Task] = None
+        self.start_time = time.time()
+
+    def render(self) -> RenderableType:
+        """Render the spinner."""
+        if not self._running:
+            return Text(f"{self.text} (stopped)")
+
+        # Get the current frame character
+        frames = self.spinner_config["frames"]
+        frame_char = frames[self.current_frame % len(frames)]
+
+        text = Text()
+        text.append(frame_char, style="bold cyan")
+        text.append(" ")
+        text.append(self.text)
+
+        # Add elapsed time if enabled
+        if self.show_elapsed:
+            elapsed = time.time() - self.start_time
+            elapsed_str = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
+            text.append(" (")
+            text.append(elapsed_str, style="dim")
+            text.append(")")
+
+        return text
+
+    async def start(self):
+        """Start the spinner animation."""
+        self._running = True
+        self.start_time = time.time()
+        self.refresh()
+
+        # Cancel existing task if running
+        if self._task and not self._task.done():
+            self._task.cancel()
+
+        # Create a new refresh task
+        self._task = asyncio.create_task(self._animate_spinner())
+
+    async def stop(self):
+        """Stop the spinner animation."""
+        self._running = False
+        if self._task and not self._task.done():
+            self._task.cancel()
+        self.refresh()
+
+    def set_text(self, text: str):
+        """Update the spinner text.
+
+        Args:
+            text: New text to display
+        """
+        self.text = text
+        self.refresh()
+
+    async def _animate_spinner(self):
+        """Continuously animate the spinner while running."""
+        try:
+            while self._running:
+                # Update frame and refresh
+                self.current_frame += 1
+                self.refresh()
+
+                # Wait for next frame using spinner interval
+                interval = self.spinner_config.get("interval", 0.1)
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            pass
+
+
+class CollapsibleWidget:
+    """A widget that can be collapsed/expanded."""
+    def __init__(self, collapse_callback: Callable = None, expand_callback: Callable = None):
+        self.collapse_callback = collapse_callback or (lambda: None)
+        self.expand_callback = expand_callback or (lambda: None)
+        self.is_collapsed = False
+
+    def _toggle_collapse(self) -> None:
+        if self.is_collapsed:
+            self.expand()
+        return self.collapse()
+
+    def collapse(self) -> None:
+        """Collapse the widget."""
+        self.is_collapsed = True
+        self.collapse_callback()
+
+    def expand(self) -> None:
+        """Expand the widget."""
+        self.is_collapsed = False
+        self.expand_callback()
 
 
 class SearchWidget:
     """Widget for search functionality."""
-
-    def __init__(self, search_callback: Optional[Callable[[str], None]] = None):
-        self.search_callback = ensure_callback(search_callback)
+    def __init__(self, search_callback: Callable = None):
+        self.search_callback = search_callback or (lambda x: None)
 
     def on_search_change(self, value: str) -> None:
         """Handle search text changes."""

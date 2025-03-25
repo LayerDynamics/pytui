@@ -206,11 +206,15 @@ def trace_function(frame, event, arg):
 
     if event == "call":
         _call_stack.append(_get_call_id())
-        # For internal files, skip tracing
         if is_internal:
+            # Ignore call events for internal files
             return None
         try:
-            args_dict = _get_function_args(frame)
+            try:
+                args_dict = _get_function_args(frame)
+            except Exception as e:
+                print(f"Error getting function args: {e}")
+                args_dict = {}
             call_event = CallEvent(function_name, filename, frame.f_lineno, args_dict)
             collector.add_call(
                 call_event.function_name,
@@ -223,7 +227,6 @@ def trace_function(frame, event, arg):
             print(f"Error in call event: {e}")
             return trace_function
 
-    # For non-call events, skip if internal
     if is_internal:
         return None
 
@@ -232,22 +235,14 @@ def trace_function(frame, event, arg):
             call_id = _call_stack.pop() if _call_stack else 0
             return_event = ReturnEvent(function_name, arg, call_id)
             collector.add_return(
-                return_event.function_name, 
+                return_event.function_name,
                 return_event.return_value,
                 call_id=return_event.call_id
             )
         elif event == "exception":
             _, exc_value, traceback = arg
-            exception_event = ExceptionEvent(
-                exception_type=type(exc_value),
-                message=str(exc_value),
-                traceback=traceback
-            )
-            # Remove the 'message' keyword argument to match collector.add_exception signature
-            collector.add_exception(
-                exc_value,
-                traceback=exception_event.traceback
-            )
+            # Call add_exception with only the exception as expected
+            collector.add_exception(exc_value)
     except (ValueError, TypeError, AttributeError) as e:
         print(f"Error in trace_function: {e}")
 

@@ -165,10 +165,9 @@ _state = TraceState()
 
 def _should_skip_file(filename: str) -> bool:
     """Check if file should be skipped for tracing."""
-    # Always allow test files
+    # Allow tracing for test files even if they're in pytui/
     if "/tests/" in filename.replace("\\", "/"):
         return False
-    # Skip internal pytui files
     return "pytui/" in filename.replace("\\", "/")
 
 
@@ -179,7 +178,7 @@ def _handle_call_with_collector(collector, is_internal, call_event):
             call_event.function_name,
             call_event.filename,
             call_event.line_no,
-            call_event.args
+            call_event.args,
         )
     return trace_function
 
@@ -190,7 +189,7 @@ def _handle_return_with_collector(collector, is_internal, return_event):
         collector.add_return(
             return_event.function_name,
             return_event.return_value,
-            call_id=return_event.call_id
+            call_id=return_event.call_id,
         )
 
 
@@ -204,54 +203,30 @@ def trace_function(frame, event, arg):
     function_name = frame.f_code.co_name
     is_internal = _should_skip_file(filename)
 
-    if event == "call":
-        _call_stack.append(_get_call_id())
-        # For internal files, skip tracing
-        if is_internal:
-            return None
-        try:
-            args_dict = _get_function_args(frame)
-            call_event = CallEvent(function_name, filename, frame.f_lineno, args_dict)
-            collector.add_call(
-                call_event.function_name,
-                call_event.filename,
-                call_event.line_no,
-                call_event.args
-            )
-            return trace_function
-        except (ValueError, TypeError, AttributeError) as e:
-            print(f"Error in call event: {e}")
-            return trace_function
-
-    # For non-call events, skip if internal
-    if is_internal:
-        return None
-
+    result = None
     try:
-        if event == "return":
+        if event == "call":
+            call_event = CallEvent(function_name, filename, frame.f_lineno, {})
+            result = _handle_call_with_collector(collector, is_internal, call_event)
+        elif event == "return":
             call_id = _call_stack.pop() if _call_stack else 0
             return_event = ReturnEvent(function_name, arg, call_id)
-            collector.add_return(
-                return_event.function_name, 
-                return_event.return_value,
-                call_id=return_event.call_id
-            )
+            _handle_return_with_collector(collector, is_internal, return_event)
         elif event == "exception":
-            _, exc_value, traceback = arg
+            exc_type, exc_value, tb = arg
             exception_event = ExceptionEvent(
-                exception_type=type(exc_value),
-                message=str(exc_value),
-                traceback=traceback
+                exception_type=exc_type, message=str(exc_value), traceback=tb
             )
-            # Remove the 'message' keyword argument to match collector.add_exception signature
-            collector.add_exception(
-                exc_value,
-                traceback=exception_event.traceback
-            )
+            if not is_internal:
+                collector.add_exception(
+                    exc_value,
+                    message=exception_event.message,
+                    traceback=exception_event.traceback,
+                )
     except (ValueError, TypeError, AttributeError) as e:
         print(f"Error in trace_function: {e}")
 
-    return None
+    return result
 
 
 def _is_valid_frame(frame):
@@ -469,8 +444,9 @@ def install_trace(collector=None, trace_path=None):
     if collector is None:
         collector = DataCollector()
 
-    # Set both state and global collector
+    # Set collector in state
     _state.set_collector(collector)
+    # Update module-level collector reference
     globals()["COLLECTOR"] = collector
 
     if trace_path:

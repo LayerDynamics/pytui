@@ -165,33 +165,10 @@ _state = TraceState()
 
 def _should_skip_file(filename: str) -> bool:
     """Check if file should be skipped for tracing."""
-    # Always allow test files
-    if "/tests/" in filename.replace("\\", "/"):
-        return False
-    # Skip internal pytui files
-    return "pytui/" in filename.replace("\\", "/")
-
-
-def _handle_call_with_collector(collector, is_internal, call_event):
-    """Handle call event with collector."""
-    if not is_internal:
-        collector.add_call(
-            call_event.function_name,
-            call_event.filename,
-            call_event.line_no,
-            call_event.args
-        )
-    return trace_function
-
-
-def _handle_return_with_collector(collector, is_internal, return_event):
-    """Handle return event with collector."""
-    if not is_internal:
-        collector.add_return(
-            return_event.function_name,
-            return_event.return_value,
-            call_id=return_event.call_id
-        )
+    # Convert to normalized path for comparison
+    normalized_path = filename.replace("\\", "/")
+    # Skip files in pytui package except for test files
+    return "pytui/" in normalized_path and "tests" not in normalized_path
 
 
 def trace_function(frame, event, arg):
@@ -204,26 +181,21 @@ def trace_function(frame, event, arg):
     function_name = frame.f_code.co_name
     is_internal = _should_skip_file(filename)
 
+    # Always return trace_function for call events, even for internal files
     if event == "call":
-        _call_stack.append(_get_call_id())
-        # For internal files, skip tracing
-        if is_internal:
-            return None
-        try:
-            args_dict = _get_function_args(frame)
-            call_event = CallEvent(function_name, filename, frame.f_lineno, args_dict)
+        if not is_internal:
+            call_event = CallEvent(function_name, filename, frame.f_lineno, {})
             collector.add_call(
                 call_event.function_name,
                 call_event.filename,
                 call_event.line_no,
                 call_event.args
             )
-            return trace_function
-        except (ValueError, TypeError, AttributeError) as e:
-            print(f"Error in call event: {e}")
-            return trace_function
+            _call_stack.append(_state.calls.current_call_id)
+            _state.calls.current_call_id += 1
+        return trace_function
 
-    # For non-call events, skip if internal
+    # Skip other events for internal files
     if is_internal:
         return None
 
@@ -232,25 +204,17 @@ def trace_function(frame, event, arg):
             call_id = _call_stack.pop() if _call_stack else 0
             return_event = ReturnEvent(function_name, arg, call_id)
             collector.add_return(
-                return_event.function_name, 
+                return_event.function_name,
                 return_event.return_value,
                 call_id=return_event.call_id
             )
         elif event == "exception":
-            _, exc_value, traceback = arg
-            exception_event = ExceptionEvent(
-                exception_type=type(exc_value),
-                message=str(exc_value),
-                traceback=traceback
-            )
-            # Remove the 'message' keyword argument to match collector.add_exception signature
-            collector.add_exception(
-                exc_value,
-                traceback=exception_event.traceback
-            )
+            exc_type, exc_value, tb = arg
+            # Just pass the exception value directly
+            collector.add_exception(exc_value)
     except (ValueError, TypeError, AttributeError) as e:
         print(f"Error in trace_function: {e}")
-
+    
     return None
 
 
@@ -352,7 +316,7 @@ def _handle_return_event(arg, func_name, collector):
                 "function_name": func_name,
                 "return_value": return_value_str,
                 "call_id": call_id,
-            },
+            }
         )
     return trace_function
 
@@ -380,7 +344,6 @@ def _get_collector():
 
 def _get_function_args(frame) -> Dict[str, str]:
     """Extract function arguments from frame."""
-
     def format_collection(value, max_items=3):
         """Helper to format collection types."""
         length = len(value)
@@ -395,7 +358,7 @@ def _get_function_args(frame) -> Dict[str, str]:
         for arg_name in args.args:
             if arg_name not in args.locals:
                 continue
-
+            
             try:
                 value = args.locals[arg_name]
                 if isinstance(value, (int, float, bool, str, type(None))):
@@ -425,11 +388,7 @@ def _send_trace_event(event_type: str, func_data: Dict[str, Any]):
 
     try:
         event_data = {"type": event_type, **func_data}
-        should_debug = (
-            event_type == "call" and func_data.get("function_name") == "function1"
-        )
-
-        if should_debug:
+        if event_type == "call" and func_data.get("function_name") == "function1":
             print("Debug: Traced function1 call, writing to trace file")
             print("DEBUG_TRACE: function1 called", file=sys.stderr)
 
@@ -437,7 +396,7 @@ def _send_trace_event(event_type: str, func_data: Dict[str, Any]):
             json_data = json.dumps(event_data)
             f.write(json_data + "\n")
             f.flush()
-            if should_debug:
+            if event_type == "call" and func_data.get("function_name") == "function1":
                 os.fsync(f.fileno())
     except (IOError, TypeError, ValueError) as exc:
         print(f"Error writing trace data: {exc}")
@@ -446,10 +405,7 @@ def _send_trace_event(event_type: str, func_data: Dict[str, Any]):
 def flush_trace():
     """Flush the trace file before exiting."""
     try:
-        if (
-            _state.files.current_trace_file is not None
-            and not _state.files.current_trace_file.closed
-        ):
+        if _state.files.current_trace_file is not None and not _state.files.current_trace_file.closed:
             _state.files.current_trace_file.flush()
     except (IOError, ValueError):
         # Ignore errors on flush during shutdown
@@ -463,25 +419,21 @@ def install_trace(collector=None, trace_path=None):
         collector: DataCollector instance to use
         trace_path: Path to file for IPC with parent process
     """
-    _call_stack.clear()
+    _call_stack.clear()  # Better than reassignment
     _state.reset()
-
+    
     if collector is None:
         collector = DataCollector()
-
-    # Set both state and global collector
+    
     _state.set_collector(collector)
-    globals()["COLLECTOR"] = collector
 
     if trace_path:
         try:
             with open(trace_path, "w", encoding="utf-8") as trace_file:
-                trace_file.write(
-                    '{"type": "test", "message": "Trace file is working"}\n'
-                )
+                trace_file.write('{"type": "test", "message": "Trace file is working"}\n')
                 trace_file.flush()
                 os.fsync(trace_file.fileno())
-
+            
             # Open file for appending with context manager
             with open(trace_path, "a", encoding="utf-8") as f:
                 _state.files.current_trace_file = f
