@@ -196,6 +196,7 @@ class ScriptExecutor:
         try:
             # Start the process with pipe buffers explicitly sized
             import subprocess
+
             self.process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -207,10 +208,10 @@ class ScriptExecutor:
                 universal_newlines=True,  # Ensure text mode works properly
             )
             self.is_running = True
-            
+
             # Add an immediate message to show the process started
             self.collector.add_output(f"Started process: {self.process.pid}", "system")
-            
+
             self._start_threads(trace_path)
         except (OSError, subprocess.SubprocessError) as e:
             self.collector.add_output(f"Failed to start process: {e}", "error")
@@ -398,11 +399,11 @@ class ScriptExecutor:
             # Set non-blocking mode for the pipe
             import fcntl
             import os
-            
+
             fd = pipe.fileno()
             fl = fcntl.fcntl(fd, fcntl.F_GETFL)
             fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-            
+
             buffer = ""
             while self.is_running:
                 try:
@@ -413,7 +414,7 @@ class ScriptExecutor:
                         buffer += chunk
                         lines = buffer.splitlines(True)
                         buffer = ""
-                        
+
                         for line in lines:
                             if line.endswith("\n"):
                                 line = line.rstrip("\n")
@@ -460,11 +461,11 @@ class ScriptExecutor:
             try:
                 # Try graceful termination first
                 terminate_process_tree(self.process.pid)
-                
+
                 # If process still running after 2 seconds, force kill
                 if self.process.poll() is None:
                     kill_process_tree(self.process.pid)
-                    
+
                 # Wait for process to fully terminate
                 self.process.wait(timeout=1)
             except:

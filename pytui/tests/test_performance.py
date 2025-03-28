@@ -16,12 +16,17 @@ from pytui.collector import DataCollector  # type: ignore
 from pytui.tracer import install_trace, trace_function  # type: ignore
 import functools
 
+
 def non_blocking(timeout=5):
     def decorator(test_func):
         @functools.wraps(test_func)
         async def wrapper(*args, **kwargs):
-            return await asyncio.wait_for(asyncio.to_thread(test_func, *args, **kwargs), timeout)
+            return await asyncio.wait_for(
+                asyncio.to_thread(test_func, *args, **kwargs), timeout
+            )
+
         return wrapper
+
     return decorator
 
 
@@ -79,9 +84,10 @@ async def test_executor_overhead(perf_script):
     # Use asyncio subprocess for direct execution
     direct_start = time.time()
     proc = await asyncio.create_subprocess_exec(
-        sys.executable, str(perf_script),
+        sys.executable,
+        str(perf_script),
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        stderr=asyncio.subprocess.PIPE,
     )
     await proc.communicate()
     direct_end = time.time()
@@ -123,18 +129,10 @@ async def test_executor_overhead(perf_script):
 
     # Verify tracing data was collected
     fib_calls = len(
-        [
-            call
-            for call in executor.collector.calls
-            if call.function_name == "fibonacci"
-        ]
+        [call for call in executor.collector.calls if call.function_name == "fibonacci"]
     )
     fact_calls = len(
-        [
-            call
-            for call in executor.collector.calls
-            if call.function_name == "factorial"
-        ]
+        [call for call in executor.collector.calls if call.function_name == "factorial"]
     )
 
     print(f"  Fibonacci calls traced: {fib_calls}")
@@ -153,6 +151,7 @@ async def test_executor_overhead(perf_script):
 def test_tracer_function_performance():
     """Test the performance of the trace_function with profiling."""
     import sys
+
     # Create a collector
     collector = DataCollector()
 

@@ -177,10 +177,10 @@ class ScriptExecutor:
         )
 
         self.is_running = True
-        
+
         # Start threads
         self._start_threads(trace_path)
-        
+
     def _start_threads(self, trace_path):
         """Start all monitoring threads."""
         threads = [
@@ -188,7 +188,7 @@ class ScriptExecutor:
             (self.stderr_thread, self._read_output, (self.process.stderr, "stderr")),
             (self.monitor_thread, self._monitor_process, ()),
             (self.trace_thread, self._read_trace_data, (trace_path,)),
-            (self.error_handler_thread, self._handle_errors, ())
+            (self.error_handler_thread, self._handle_errors, ()),
         ]
 
         for thread_obj, target, args in threads:
@@ -357,8 +357,8 @@ class ScriptExecutor:
     def _read_output(self, pipe, stream_name):
         """Read output from the subprocess pipe."""
         try:
-            for line in iter(pipe.readline, ''):
-                line = line.rstrip('\n')
+            for line in iter(pipe.readline, ""):
+                line = line.rstrip("\n")
                 if line and not self.is_paused and self.is_running:
                     self.collector.add_output(line, stream_name)
         except (IOError, OSError, ValueError) as e:
@@ -373,7 +373,7 @@ class ScriptExecutor:
         try:
             returncode = self.process.wait()
             self.is_running = False
-            
+
             # Close pipes
             for pipe in (self.process.stdout, self.process.stderr):
                 if pipe and not pipe.closed:
@@ -382,7 +382,7 @@ class ScriptExecutor:
             # Add completion message
             status = "successfully" if returncode == 0 else f"with code {returncode}"
             self.collector.add_output(f"Script completed {status}", "system")
-            
+
         except (IOError, OSError) as e:
             self._queue_error("process monitor", e)
             self.is_running = False

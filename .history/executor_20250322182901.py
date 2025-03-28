@@ -181,12 +181,14 @@ class ScriptExecutor:
             self.stdout_thread = threading.Thread(
                 target=self._read_output,
                 args=(self.process.stdout, "stdout"),
-                daemon=True
+                daemon=True,
             )
             self.stdout_thread.start()
 
             self.stderr_thread = threading.Thread(
-                target=self._read_output, args=(self.process.stderr, "stderr"), daemon=True
+                target=self._read_output,
+                args=(self.process.stderr, "stderr"),
+                daemon=True,
             )
             self.stderr_thread.start()
 
@@ -419,7 +421,10 @@ class ScriptExecutor:
                 self.monitor_thread.join(timeout=2)
             if hasattr(self, "trace_thread") and self.trace_thread.is_alive():
                 self.trace_thread.join(timeout=2)
-            if hasattr(self, "error_handler_thread") and self.error_handler_thread.is_alive():
+            if (
+                hasattr(self, "error_handler_thread")
+                and self.error_handler_thread.is_alive()
+            ):
                 self.error_handler_thread.join(timeout=2)
             # (Keep self.process to allow subsequent checks)
 

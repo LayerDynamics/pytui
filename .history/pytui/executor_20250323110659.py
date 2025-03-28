@@ -468,7 +468,11 @@ class ScriptExecutor:
                 # Wait for process to fully terminate
                 self.process.wait(timeout=1)
             # Replace bare excepts with specific exception types
-            except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
+            except (
+                OSError,
+                subprocess.SubprocessError,
+                subprocess.TimeoutExpired,
+            ) as e:
                 # Log the exception
                 print(f"Error during process termination: {e}")
                 # If anything goes wrong, ensure process is killed

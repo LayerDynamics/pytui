@@ -410,11 +410,11 @@ class ScriptExecutor:
             try:
                 # Try graceful termination first
                 terminate_process_tree(self.process.pid)
-                
+
                 # If process still running after 2 seconds, force kill
                 if self.process.poll() is None:
                     kill_process_tree(self.process.pid)
-                    
+
                 # Wait for process to fully terminate
                 self.process.wait(timeout=1)
             except:

@@ -1,4 +1,5 @@
 """Script execution wrapper and subprocess manager."""
+
 # pylint: disable=trailing-whitespace
 
 import os
@@ -11,6 +12,7 @@ import threading
 from typing import Optional
 
 from .collector import DataCollector, CallEvent
+
 
 class ScriptExecutor:
     """Executes a Python script in a subprocess with tracing and output capture."""
@@ -34,19 +36,21 @@ class ScriptExecutor:
         pytui_path = str(Path(__file__).parent.absolute())
 
         python_paths = [package_root, pytui_path]
-        if 'PYTHONPATH' in env:
-            python_paths.extend(env['PYTHONPATH'].split(os.pathsep))
-        env['PYTHONPATH'] = os.pathsep.join(python_paths)
-        
+        if "PYTHONPATH" in env:
+            python_paths.extend(env["PYTHONPATH"].split(os.pathsep))
+        env["PYTHONPATH"] = os.pathsep.join(python_paths)
+
         # Create a named pipe or temporary file for IPC
-        self.trace_fifo = tempfile.NamedTemporaryFile(delete=False, prefix='pytui_trace_', suffix='.jsonl')
+        self.trace_fifo = tempfile.NamedTemporaryFile(
+            delete=False, prefix="pytui_trace_", suffix=".jsonl"
+        )
         trace_path = self.trace_fifo.name
         self.trace_fifo.close()  # Close it so the subprocess can write to it
-        
+
         # Set up hook to inject tracer with IPC path
-        env['PYTUI_TRACE'] = "1"
-        env['PYTUI_TRACE_PATH'] = trace_path
-        
+        env["PYTUI_TRACE"] = "1"
+        env["PYTUI_TRACE_PATH"] = trace_path
+
         # Enhanced bootstrap code that handles execution more carefully
         bootstrap_code = (
             "import os, sys, threading, json\n"
@@ -68,7 +72,7 @@ class ScriptExecutor:
             "    install_trace(collector, trace_path)\n"
             "    \n"
             "    # Verify the trace file is working by directly writing to it\n"
-            "    trace_file.write('{\"type\": \"test\", \"message\": \"Trace file is working\"}\\n')\n"
+            '    trace_file.write(\'{"type": "test", "message": "Trace file is working"}\\n\')\n'
             "    trace_file.flush()\n"
             "    \n"
             "    # Define original_import to wrap imports\n"
@@ -134,7 +138,7 @@ class ScriptExecutor:
             "-c",
             bootstrap_code,
             str(self.script_path.absolute()),
-            *self.script_args
+            *self.script_args,
         ]
 
         # Start process
@@ -145,167 +149,172 @@ class ScriptExecutor:
             env=env,
             text=True,
             bufsize=1,
-            cwd=str(self.script_path.parent)
+            cwd=str(self.script_path.parent),
         )
-        
+
         self.is_running = True
-        
+
         # Start reader threads
         self.stdout_thread = threading.Thread(
-            target=self._read_output,
-            args=(self.process.stdout, "stdout"),
-            daemon=True
+            target=self._read_output, args=(self.process.stdout, "stdout"), daemon=True
         )
         self.stdout_thread.start()
-        
+
         self.stderr_thread = threading.Thread(
-            target=self._read_output,
-            args=(self.process.stderr, "stderr"),
-            daemon=True
+            target=self._read_output, args=(self.process.stderr, "stderr"), daemon=True
         )
         self.stderr_thread.start()
-        
+
         # Start thread to monitor process completion
         self.monitor_thread = threading.Thread(
-            target=self._monitor_process,
-            daemon=True
+            target=self._monitor_process, daemon=True
         )
         self.monitor_thread.start()
-        
+
         # Start thread to read trace data
         self.trace_thread = threading.Thread(
-            target=self._read_trace_data,
-            args=(trace_path,),
-            daemon=True
+            target=self._read_trace_data, args=(trace_path,), daemon=True
         )
         self.trace_thread.start()
-    
+
     def _read_trace_data(self, trace_path):
         """Read function call trace data from the IPC file."""
         # Wait for the file to be created and populated
         import time
-        
+
         # Give the subprocess a bit more time to start up
         time.sleep(0.5)
-        
+
         # Debug output
         print(f"Debug: Reading trace data from {trace_path}")
-        
+
         try:
             # Monitor file for content
             max_retries = 30
             retry_count = 0
             content = ""
-            
+
             while retry_count < max_retries:
                 if not os.path.exists(trace_path):
                     print(f"Debug: Trace file does not exist, retrying...")
                     time.sleep(0.2)
                     retry_count += 1
                     continue
-                    
+
                 file_size = os.path.getsize(trace_path)
                 print(f"Debug: Trace file exists, size: {file_size}")
-                
+
                 if file_size == 0:
                     print(f"Debug: Trace file is empty, retrying...")
                     time.sleep(0.2)
                     retry_count += 1
                     continue
-                    
+
                 # Read the file content
-                with open(trace_path, 'r') as f:
+                with open(trace_path, "r") as f:
                     content = f.read()
-                    
+
                 if content.strip():
                     break
-                    
+
                 time.sleep(0.2)
                 retry_count += 1
-            
+
             # Process content if we got some
             if not content.strip():
-                print("Debug: Could not read any content from trace file after multiple retries")
+                print(
+                    "Debug: Could not read any content from trace file after multiple retries"
+                )
                 return
-                
+
             # Process line by line
             lines = content.splitlines()
             print(f"Debug: Found {len(lines)} lines in trace file")
-            
+
             # Sample some lines for debugging
             if lines:
                 print(f"Debug: First few trace lines:")
                 for i in range(min(3, len(lines))):
                     print(f"  Line {i+1}: {lines[i][:100]}")
-            
+
             # Process each line
             call_count = 0
             return_count = 0
             error_count = 0
-            
+
             for i, line in enumerate(lines):
                 line = line.strip()
                 if not line:
                     continue
-                    
+
                 try:
                     # Add more robust JSON parsing - sometimes we get malformed JSON
                     # Make sure line starts with {
-                    if not line.startswith('{'):
-                        print(f"Skipping invalid JSON line {i+1}: doesn't start with {{")
+                    if not line.startswith("{"):
+                        print(
+                            f"Skipping invalid JSON line {i+1}: doesn't start with {{"
+                        )
                         continue
-                        
+
                     # Parse the trace event
                     data = json.loads(line)
-                    event_type = data.get('type')
-                    
-                    if event_type == 'call':
+                    event_type = data.get("type")
+
+                    if event_type == "call":
                         # Extract data with defaults for backward compatibility
-                        func_name = data.get('function_name', '')
-                        filename = data.get('filename', '')
-                        line_no = data.get('line_no', 0)
-                        args = data.get('args', {})
-                        call_id = data.get('call_id', 0)
-                        parent_id = data.get('parent_id')
-                        
+                        func_name = data.get("function_name", "")
+                        filename = data.get("filename", "")
+                        line_no = data.get("line_no", 0)
+                        args = data.get("args", {})
+                        call_id = data.get("call_id", 0)
+                        parent_id = data.get("parent_id")
+
                         # Skip if missing key data
                         if not func_name or not filename:
                             continue
-                            
+
                         # Add call to the collector
                         self.collector.add_call(
-                            func_name, filename, line_no, args,
-                            call_id=call_id, parent_id=parent_id
+                            func_name,
+                            filename,
+                            line_no,
+                            args,
+                            call_id=call_id,
+                            parent_id=parent_id,
                         )
                         call_count += 1
-                        
-                    elif event_type == 'return':
+
+                    elif event_type == "return":
                         # Add return to the collector
                         self.collector.add_return(
-                            data.get('function_name', ''),
-                            data.get('return_value', 'None'),
-                            call_id=data.get('call_id', 0)
+                            data.get("function_name", ""),
+                            data.get("return_value", "None"),
+                            call_id=data.get("call_id", 0),
                         )
                         return_count += 1
-                        
+
                 except json.JSONDecodeError as e:
                     # More detailed error for JSON parsing issues
                     error_count += 1
                     if error_count <= 3:  # Limit error output
-                        preview = line[:50] + ('...' if len(line) > 50 else '')
-                        print(f"Error parsing JSON at line {i+1}: {e}, content: {preview}")
+                        preview = line[:50] + ("..." if len(line) > 50 else "")
+                        print(
+                            f"Error parsing JSON at line {i+1}: {e}, content: {preview}"
+                        )
                 except Exception as e:
                     error_count += 1
                     if error_count <= 3:
                         print(f"Error processing trace data at line {i+1}: {e}")
-            
-            print(f"Debug: Processed {call_count} call events and {return_count} return events with {error_count} errors")
-            
+
+            print(
+                f"Debug: Processed {call_count} call events and {return_count} return events with {error_count} errors"
+            )
+
             if call_count == 0:
                 # Try a different parsing approach if no calls were found
                 print("Debug: Attempting alternative parsing method...")
                 self._try_alternative_parsing(content)
-                
+
         except Exception as e:
             print(f"Fatal error reading trace data: {e}")
         finally:
@@ -315,33 +324,35 @@ class ScriptExecutor:
                     os.unlink(trace_path)
             except:
                 pass
-                
+
     def _try_alternative_parsing(self, content):
         """Try alternative parsing methods for trace data."""
         # Method 1: Try parsing with different line endings
-        lines = content.replace('\r\n', '\n').split('\n')
-        
+        lines = content.replace("\r\n", "\n").split("\n")
+
         call_count = 0
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-                
+
             # Look for function1 manually in the content
             if '"function_name": "function1"' in line:
                 try:
                     data = json.loads(line)
-                    func_name = data.get('function_name', '')
-                    filename = data.get('filename', '')
-                    line_no = data.get('line_no', 0)
-                    args = data.get('args', {})
-                    
+                    func_name = data.get("function_name", "")
+                    filename = data.get("filename", "")
+                    line_no = data.get("line_no", 0)
+                    args = data.get("args", {})
+
                     self.collector.add_call(func_name, filename, line_no, args)
-                    print(f"Debug: Manually found function1 call: {func_name} at {filename}:{line_no}")
+                    print(
+                        f"Debug: Manually found function1 call: {func_name} at {filename}:{line_no}"
+                    )
                     call_count += 1
                 except:
                     pass
-        
+
         print(f"Debug: Alternative parsing found {call_count} calls")
 
     def _read_output(self, pipe, stream_name):
@@ -351,8 +362,8 @@ class ScriptExecutor:
                 line = pipe.readline()
                 if not line:
                     break  # EOF reached
-                
-                line = line.rstrip('\n')
+
+                line = line.rstrip("\n")
                 if line and not self.is_paused:
                     self.collector.add_output(line, stream_name)
         except (IOError, OSError, ValueError) as e:
@@ -373,7 +384,9 @@ class ScriptExecutor:
                 self.process.stdout.close()
             if self.process.stderr:
                 self.process.stderr.close()
-            self.collector.add_output(f"Process exited with code {returncode}", "system")
+            self.collector.add_output(
+                f"Process exited with code {returncode}", "system"
+            )
         except (IOError, OSError) as e:
             self.collector.add_exception(e)
 
@@ -394,7 +407,7 @@ class ScriptExecutor:
     def restart(self):
         """Restart the script execution."""
         self.stop()
-        
+
         # Wait for process to terminate completely
         if self.process:
             try:
@@ -403,14 +416,15 @@ class ScriptExecutor:
                 # Force kill if needed
                 if self.process.poll() is None:
                     self.process.kill()
-        
+
         # Ensure is_running is properly set
         self.is_running = False
-        
+
         # Allow pipes to close completely
         import time
+
         time.sleep(0.5)
-        
+
         self.collector.clear()
         # Now start the new process
         self.start()

@@ -57,9 +57,9 @@ COLLECTOR = None
 def get_collector():
     """Get or create the singleton collector instance."""
     # Use module-level function lookup instead of global statement
-    if globals().get('COLLECTOR') is None:
-        globals()['COLLECTOR'] = DataCollector()
-    return globals()['COLLECTOR']
+    if globals().get("COLLECTOR") is None:
+        globals()["COLLECTOR"] = DataCollector()
+    return globals()["COLLECTOR"]
 
 
 # pylint: disable=too-many-instance-attributes
@@ -81,7 +81,7 @@ class DataCollector:
         """Add a function call event."""
         call_id = self.next_call_id
         self.next_call_id += 1
-        
+
         # Create call event
         event = CallEvent(
             function_name=function_name,
@@ -89,9 +89,9 @@ class DataCollector:
             line_no=line_no,
             args=args,
             call_id=call_id,
-            parent_id=parent_id
+            parent_id=parent_id,
         )
-        
+
         # Track call stack
         self.call_stack.append(call_id)
         self.calls.append(event)
@@ -101,11 +101,9 @@ class DataCollector:
         """Add a function return event."""
         if not call_id and self.call_stack:
             call_id = self.call_stack.pop()
-            
+
         event = ReturnEvent(
-            function_name=function_name,
-            return_value=return_value,
-            call_id=call_id
+            function_name=function_name, return_value=return_value, call_id=call_id
         )
         self.returns.append(event)
         self._queue_event("return", event)

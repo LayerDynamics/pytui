@@ -57,9 +57,9 @@ COLLECTOR = None
 def get_collector():
     """Get or create the singleton collector instance."""
     # Use module-level function lookup instead of global statement
-    if globals().get('COLLECTOR') is None:
-        globals()['COLLECTOR'] = DataCollector()
-    return globals()['COLLECTOR']
+    if globals().get("COLLECTOR") is None:
+        globals()["COLLECTOR"] = DataCollector()
+    return globals()["COLLECTOR"]
 
 
 # pylint: disable=too-many-instance-attributes

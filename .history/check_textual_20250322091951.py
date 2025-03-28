@@ -9,6 +9,7 @@ def check_textual_version() -> str:
     """Check installed Textual version."""
     try:
         import textual
+
         return textual.__version__
     except ImportError:
         return "Not installed"
@@ -16,11 +17,11 @@ def check_textual_version() -> str:
 
 def find_widget_classes(modules: List[str], target_classes: Set[str]) -> dict:
     """Search for widget classes in Textual modules.
-    
+
     Args:
         modules: List of module paths to check
         target_classes: Set of class names to look for
-        
+
     Returns:
         Dict mapping found classes to their module paths
     """
@@ -46,24 +47,24 @@ def main():
     print(f"Textual version: {version}")
 
     modules = [
-        'textual',
-        'textual.app',
-        'textual.widgets',
-        'textual.containers',
-        'textual.widget',
-        'textual.widgets.tree',
-        'textual.widgets.tree_control',
-        'textual.tree'
+        "textual",
+        "textual.app",
+        "textual.widgets",
+        "textual.containers",
+        "textual.widget",
+        "textual.widgets.tree",
+        "textual.widgets.tree_control",
+        "textual.tree",
     ]
 
     target_classes = {
-        'Tree',
-        'TreeControl',
-        'TreeView',
-        'ScrollView',
-        'Static',
-        'Container',
-        'App'
+        "Tree",
+        "TreeControl",
+        "TreeView",
+        "ScrollView",
+        "Static",
+        "Container",
+        "App",
     }
 
     print("\n=== Searching for Required Widgets ===")

@@ -46,17 +46,17 @@ class ScriptExecutor:
     def is_running(self):
         """Check if the executor is currently running."""
         return self._is_running
-    
+
     @is_running.setter
     def is_running(self, value):
         """Set the running state."""
         self._is_running = value
-        
+
     @property
     def is_paused(self):
         """Check if the executor is currently paused."""
         return self._is_paused
-        
+
     @is_paused.setter
     def is_paused(self, value):
         """Set the paused state."""
@@ -566,8 +566,10 @@ class ScriptExecutor:
         time.sleep(0.1)  # Brief pause to ensure cleanup
         self.start()
 
+
 import time
 import threading
+
 
 class ScriptExecutor:
     def __init__(self, script_path):

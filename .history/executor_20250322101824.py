@@ -1,4 +1,5 @@
 """Script execution wrapper and subprocess manager."""
+
 # pylint: disable=trailing-whitespace
 
 import os
@@ -11,6 +12,7 @@ import threading
 from typing import Optional
 
 from .collector import DataCollector, CallEvent
+
 
 class ScriptExecutor:
     """Executes a Python script in a subprocess with tracing and output capture."""
@@ -34,19 +36,21 @@ class ScriptExecutor:
         pytui_path = str(Path(__file__).parent.absolute())
 
         python_paths = [package_root, pytui_path]
-        if 'PYTHONPATH' in env:
-            python_paths.extend(env['PYTHONPATH'].split(os.pathsep))
-        env['PYTHONPATH'] = os.pathsep.join(python_paths)
-        
+        if "PYTHONPATH" in env:
+            python_paths.extend(env["PYTHONPATH"].split(os.pathsep))
+        env["PYTHONPATH"] = os.pathsep.join(python_paths)
+
         # Create a named pipe or temporary file for IPC
-        self.trace_fifo = tempfile.NamedTemporaryFile(delete=False, prefix='pytui_trace_', suffix='.jsonl')
+        self.trace_fifo = tempfile.NamedTemporaryFile(
+            delete=False, prefix="pytui_trace_", suffix=".jsonl"
+        )
         trace_path = self.trace_fifo.name
         self.trace_fifo.close()  # Close it so the subprocess can write to it
-        
+
         # Set up hook to inject tracer with IPC path
-        env['PYTUI_TRACE'] = "1"
-        env['PYTUI_TRACE_PATH'] = trace_path
-        
+        env["PYTUI_TRACE"] = "1"
+        env["PYTUI_TRACE_PATH"] = trace_path
+
         # Updated bootstrap code with IPC for function traces
         bootstrap_code = (
             "import os, sys, threading, json\n"
@@ -92,7 +96,7 @@ class ScriptExecutor:
             "-c",
             bootstrap_code,
             str(self.script_path.absolute()),
-            *self.script_args
+            *self.script_args,
         ]
 
         # Start process
@@ -103,76 +107,70 @@ class ScriptExecutor:
             env=env,
             text=True,
             bufsize=1,
-            cwd=str(self.script_path.parent)
+            cwd=str(self.script_path.parent),
         )
-        
+
         self.is_running = True
-        
+
         # Start reader threads
         self.stdout_thread = threading.Thread(
-            target=self._read_output,
-            args=(self.process.stdout, "stdout"),
-            daemon=True
+            target=self._read_output, args=(self.process.stdout, "stdout"), daemon=True
         )
         self.stdout_thread.start()
-        
+
         self.stderr_thread = threading.Thread(
-            target=self._read_output,
-            args=(self.process.stderr, "stderr"),
-            daemon=True
+            target=self._read_output, args=(self.process.stderr, "stderr"), daemon=True
         )
         self.stderr_thread.start()
-        
+
         # Start thread to monitor process completion
         self.monitor_thread = threading.Thread(
-            target=self._monitor_process,
-            daemon=True
+            target=self._monitor_process, daemon=True
         )
         self.monitor_thread.start()
-        
+
         # Start thread to read trace data
         self.trace_thread = threading.Thread(
-            target=self._read_trace_data,
-            args=(trace_path,),
-            daemon=True
+            target=self._read_trace_data, args=(trace_path,), daemon=True
         )
         self.trace_thread.start()
-    
+
     def _read_trace_data(self, trace_path):
         """Read function call trace data from the IPC file."""
         # Wait a moment to ensure the subprocess has started
         import time
+
         time.sleep(0.1)
-        
+
         try:
-            with open(trace_path, 'r') as f:
+            with open(trace_path, "r") as f:
                 while self.is_running:
                     line = f.readline()
                     if not line:
                         time.sleep(0.05)  # Don't hog CPU
                         continue
-                    
+
                     try:
                         # Parse the trace event
                         data = json.loads(line.strip())
-                        event_type = data.get('type')
-                        
-                        if event_type == 'call':
+                        event_type = data.get("type")
+
+                        if event_type == "call":
                             # Add call to the collector
                             self.collector.add_call(
-                                data['function_name'],
-                                data['filename'],
-                                data['line_no'],
-                                data['args'],
-                                call_id=data.get('call_id', 0),
-                                parent_id=data.get('parent_id')
+                                data["function_name"],
+                                data["filename"],
+                                data["line_no"],
+                                data["args"],
+                                call_id=data.get("call_id", 0),
+                                parent_id=data.get("parent_id"),
                             )
-                        elif event_type == 'return':
+                        elif event_type == "return":
                             # Add return to the collector
                             self.collector.add_return(
-                                data['function_name'],
-                                data['return_value'],
-                                call_id=data.get('call_id', 0)
+                                data["function_name"],
+                                data["return_value"],
+                                call_id=data.get("call_id", 0),
                             )
                     except json.JSONDecodeError:
                         # Skip malformed JSON
@@ -195,8 +193,8 @@ class ScriptExecutor:
                 line = pipe.readline()
                 if not line:
                     break  # EOF reached
-                
-                line = line.rstrip('\n')
+
+                line = line.rstrip("\n")
                 if line and not self.is_paused:
                     self.collector.add_output(line, stream_name)
         except (IOError, OSError, ValueError) as e:
@@ -217,7 +215,9 @@ class ScriptExecutor:
                 self.process.stdout.close()
             if self.process.stderr:
                 self.process.stderr.close()
-            self.collector.add_output(f"Process exited with code {returncode}", "system")
+            self.collector.add_output(
+                f"Process exited with code {returncode}", "system"
+            )
         except (IOError, OSError) as e:
             self.collector.add_exception(e)
 
@@ -238,7 +238,7 @@ class ScriptExecutor:
     def restart(self):
         """Restart the script execution."""
         self.stop()
-        
+
         # Wait for process to terminate completely
         if self.process:
             try:
@@ -247,14 +247,15 @@ class ScriptExecutor:
                 # Force kill if needed
                 if self.process.poll() is None:
                     self.process.kill()
-        
+
         # Ensure is_running is properly set
         self.is_running = False
-        
+
         # Allow pipes to close completely
         import time
+
         time.sleep(0.5)
-        
+
         self.collector.clear()
         # Now start the new process
         self.start()

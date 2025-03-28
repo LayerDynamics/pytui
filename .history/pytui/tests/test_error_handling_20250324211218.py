@@ -164,17 +164,25 @@ async def test_error_handling(error_script):
 
     timeout = 5
     start_time = asyncio.get_event_loop().time()
-    while executor.is_running and (asyncio.get_event_loop().time() - start_time) < timeout:
+    while (
+        executor.is_running and (asyncio.get_event_loop().time() - start_time) < timeout
+    ):
         await asyncio.sleep(0.1)
 
     sys.path = original_path
 
-    assert (asyncio.get_event_loop().time() - start_time) < timeout, "Script execution timed out"
+    assert (
+        asyncio.get_event_loop().time() - start_time
+    ) < timeout, "Script execution timed out"
     assert not executor.is_running, "Executor should not be running after script error"
     exceptions = executor.collector.exceptions
     assert len(exceptions) > 0, "No exceptions were captured"
-    assert "ValueError" in exceptions[0].exception_type, "Exception type should be ValueError"
-    assert "This is a test error" in exceptions[0].message, "Exception message not captured correctly"
+    assert (
+        "ValueError" in exceptions[0].exception_type
+    ), "Exception type should be ValueError"
+    assert (
+        "This is a test error" in exceptions[0].message
+    ), "Exception message not captured correctly"
 
 
 @pytest.mark.skipif(
@@ -192,7 +200,9 @@ async def test_long_running_script_termination(long_running_script):
     await asyncio.sleep(1)
     assert executor.is_running
     if executor.process:
-        proc_info = subprocess.CompletedProcess(args=["echo", "test"], returncode=0, stdout=b"test", stderr=b"")
+        proc_info = subprocess.CompletedProcess(
+            args=["echo", "test"], returncode=0, stdout=b"test", stderr=b""
+        )
         assert proc_info.returncode == 0
     if executor.process and executor.process.pid:
         terminate_process_tree(executor.process.pid)
@@ -200,7 +210,9 @@ async def test_long_running_script_termination(long_running_script):
     assert not executor.is_running
     assert executor.process is None
     assert len(executor.collector.output) > 0, "No output was collected"
-    assert any("Starting long" in out.content for out in executor.collector.output), "Starting message not found"
+    assert any(
+        "Starting long" in out.content for out in executor.collector.output
+    ), "Starting message not found"
 
 
 @pytest.mark.skipif(
@@ -264,7 +276,9 @@ async def test_executor_start_stop_restart_stress(error_script):
         if executor.process and executor.process.pid:
             process_pids.append(executor.process.pid)
             if original_pid:
-                assert executor.process.pid != original_pid, "Process ID should change after restart"
+                assert (
+                    executor.process.pid != original_pid
+                ), "Process ID should change after restart"
         await asyncio.sleep(0.2)
         for _ in range(3):
             executor.restart()
@@ -273,8 +287,12 @@ async def test_executor_start_stop_restart_stress(error_script):
                 process_pids.append(executor.process.pid)
             await asyncio.sleep(0.1)
         executor.stop()
-        assert not executor.is_running, "Executor should not be running after final stop"
-        assert not is_process_running(), "Process should not be running after final stop"
+        assert (
+            not executor.is_running
+        ), "Executor should not be running after final stop"
+        assert (
+            not is_process_running()
+        ), "Process should not be running after final stop"
     finally:
         try:
             executor.stop()
@@ -295,16 +313,20 @@ async def test_executor_async_operations(long_running_script):
     assert executor.is_running, "Executor should be running after start"
     await asyncio.sleep(1.0)  # Changed from 0.5 to 1.0
     assert executor.is_running, "Executor should still be running"
+
     async def restart_executor():
         executor.restart()
         return True
+
     restart_task = asyncio.create_task(restart_executor())
     restart_result = await asyncio.wait_for(restart_task, timeout=2.0)
     assert restart_result, "Restart should complete within timeout"
     await asyncio.sleep(0.5)
+
     async def stop_executor():
         executor.stop()
         return True
+
     stop_task = asyncio.create_task(stop_executor())
     stop_result = await asyncio.wait_for(stop_task, timeout=2.0)
     assert stop_result, "Stop should complete within timeout"

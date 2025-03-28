@@ -136,11 +136,15 @@ def test_trace_function_skips_internal(mock_frame, mock_collector):
 
     # For "call" events, it should return the trace function to allow further tracing
     result_call = trace_function(mock_frame, "call", None)
-    assert result_call is trace_function, "trace_function should return itself for 'call' events even in internal modules"
+    assert (
+        result_call is trace_function
+    ), "trace_function should return itself for 'call' events even in internal modules"
 
     # For other events like "return", it should return None
     result_return = trace_function(mock_frame, "return", "value")
-    assert result_return is None, "trace_function should return None for non-call events in internal modules"
+    assert (
+        result_return is None
+    ), "trace_function should return None for non-call events in internal modules"
 
     # Collector should not be called for internal modules
     import pytui.tracer

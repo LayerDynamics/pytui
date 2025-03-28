@@ -7,9 +7,11 @@ from typing import Dict, List, Optional  # Removed "Any"
 from dataclasses import dataclass, field
 import traceback  # Moved from inside methods
 
+
 @dataclass
 class CallEvent:
     """Function call event data."""
+
     function_name: str
     filename: str
     line_no: int
@@ -18,28 +20,35 @@ class CallEvent:
     call_id: int = 0
     parent_id: Optional[int] = None
 
+
 @dataclass
 class ReturnEvent:
     """Function return event data."""
+
     function_name: str
     return_value: str
     timestamp: float = field(default_factory=time.time)
     call_id: int = 0
 
+
 @dataclass
 class ExceptionEvent:
     """Exception event data."""
+
     exception_type: str
     message: str
     traceback: List[str]
     timestamp: float = field(default_factory=time.time)
 
+
 @dataclass
 class OutputLine:
     """Output line data."""
+
     content: str
     stream: str  # 'stdout', 'stderr', or 'system'
     timestamp: float = field(default_factory=time.time)
+
 
 class DataCollector:
     """Collects runtime data from execution."""
@@ -55,14 +64,16 @@ class DataCollector:
             "calls": [],
             "returns": [],
             "exceptions": [],
-            "output": []
+            "output": [],
         }
 
         # Create asyncio queue for live updates
         self.event_queue = asyncio.Queue()
         self.loop = asyncio.get_event_loop()  # Store the current event loop
 
-    def add_call(self, function_name: str, filename: str, line_no: int, args: Dict[str, str]):
+    def add_call(
+        self, function_name: str, filename: str, line_no: int, args: Dict[str, str]
+    ):
         """Add a function call event."""
         with self.lock:
             parent_id = self.call_stack[-1] if self.call_stack else None
@@ -75,7 +86,7 @@ class DataCollector:
                 line_no=line_no,
                 args=args,
                 call_id=call_id,
-                parent_id=parent_id
+                parent_id=parent_id,
             )
 
             self.events["calls"].append(call)
@@ -83,8 +94,7 @@ class DataCollector:
 
             # Use stored loop in run_coroutine_threadsafe
             asyncio.run_coroutine_threadsafe(
-                self.event_queue.put(('call', call)),
-                self.loop
+                self.event_queue.put(("call", call)), self.loop
             )
 
     def add_return(self, function_name: str, return_value: str):
@@ -96,16 +106,13 @@ class DataCollector:
             call_id = self.call_stack.pop()
 
             ret = ReturnEvent(
-                function_name=function_name,
-                return_value=return_value,
-                call_id=call_id
+                function_name=function_name, return_value=return_value, call_id=call_id
             )
 
             self.events["returns"].append(ret)
 
             asyncio.run_coroutine_threadsafe(
-                self.event_queue.put(('return', ret)),
-                self.loop
+                self.event_queue.put(("return", ret)), self.loop
             )
 
     def add_exception(self, exception):
@@ -113,19 +120,18 @@ class DataCollector:
         with self.lock:
             exc_type = type(exception).__name__
             message = str(exception)
-            tb_lines = traceback.format_exception(type(exception), exception, exception.__traceback__)
+            tb_lines = traceback.format_exception(
+                type(exception), exception, exception.__traceback__
+            )
 
             exc = ExceptionEvent(
-                exception_type=exc_type,
-                message=message,
-                traceback=tb_lines
+                exception_type=exc_type, message=message, traceback=tb_lines
             )
 
             self.events["exceptions"].append(exc)
 
             asyncio.run_coroutine_threadsafe(
-                self.event_queue.put(('exception', exc)),
-                self.loop
+                self.event_queue.put(("exception", exc)), self.loop
             )
 
     def add_output(self, content: str, stream: str):
@@ -135,8 +141,7 @@ class DataCollector:
             self.events["output"].append(line)
 
             asyncio.run_coroutine_threadsafe(
-                self.event_queue.put(('output', line)),
-                self.loop
+                self.event_queue.put(("output", line)), self.loop
             )
 
     def clear(self):

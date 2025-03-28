@@ -219,7 +219,7 @@ class ScriptExecutor:
                 time.sleep(0.2)
                 continue
 
-            with open(trace_path, "r", encoding='utf-8') as f:
+            with open(trace_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             if content.strip():
@@ -235,10 +235,10 @@ class ScriptExecutor:
         if lines:
             print("Debug: First few trace lines:")
             for i in range(min(3, len(lines))):
-                print("  Line", i+1, ":", lines[i][:100])
+                print("  Line", i + 1, ":", lines[i][:100])
 
         call_count = return_count = error_count = 0
-        content = '\n'.join(lines)  # Store content for alternative parsing
+        content = "\n".join(lines)  # Store content for alternative parsing
 
         for i, line in enumerate(lines):
             line = line.strip()
@@ -247,7 +247,7 @@ class ScriptExecutor:
 
             try:
                 if not line.startswith("{"):
-                    print("Skipping invalid JSON line", i+1, ": doesn't start with {")
+                    print("Skipping invalid JSON line", i + 1, ": doesn't start with {")
                     continue
 
                 data = json.loads(line)
@@ -264,14 +264,28 @@ class ScriptExecutor:
                 error_count += 1
                 if error_count <= 3:
                     preview = line[:50] + ("..." if len(line) > 50 else "")
-                    print("Error parsing JSON at line", i+1, ":", str(e), "content:", preview)
+                    print(
+                        "Error parsing JSON at line",
+                        i + 1,
+                        ":",
+                        str(e),
+                        "content:",
+                        preview,
+                    )
             except (KeyError, ValueError) as e:
                 error_count += 1
                 if error_count <= 3:
-                    print("Error processing trace data at line", i+1, ":", str(e))
+                    print("Error processing trace data at line", i + 1, ":", str(e))
 
-        print("Debug: Processed", call_count, "call events and", return_count, 
-              "return events with", error_count, "errors")
+        print(
+            "Debug: Processed",
+            call_count,
+            "call events and",
+            return_count,
+            "return events with",
+            error_count,
+            "errors",
+        )
 
         if call_count == 0:
             print("Debug: Attempting alternative parsing method...")

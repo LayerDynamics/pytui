@@ -1,4 +1,5 @@
 """Script execution wrapper and subprocess manager."""
+
 # pylint: disable=trailing-whitespace
 
 import os
@@ -9,6 +10,7 @@ import threading
 from typing import Optional
 
 from .collector import DataCollector
+
 
 class ScriptExecutor:
     """Executes a Python script in a subprocess with tracing and output capture."""
@@ -32,10 +34,10 @@ class ScriptExecutor:
         pytui_path = str(Path(__file__).parent.absolute())
 
         python_paths = [package_root, pytui_path]
-        if 'PYTHONPATH' in env:
-            python_paths.extend(env['PYTHONPATH'].split(os.pathsep))
-        env['PYTHONPATH'] = os.pathsep.join(python_paths)
-        env['PYTUI_TRACE'] = "1"
+        if "PYTHONPATH" in env:
+            python_paths.extend(env["PYTHONPATH"].split(os.pathsep))
+        env["PYTHONPATH"] = os.pathsep.join(python_paths)
+        env["PYTUI_TRACE"] = "1"
 
         # Break long lines and use context management for resources
         bootstrap_code = (
@@ -81,7 +83,7 @@ class ScriptExecutor:
             "-c",
             bootstrap_code,
             str(self.script_path.absolute()),
-            *self.script_args
+            *self.script_args,
         ]
 
         # Use context manager for subprocess and break long lines
@@ -92,7 +94,7 @@ class ScriptExecutor:
             env=env,
             text=True,
             bufsize=1,
-            cwd=str(self.script_path.parent)
+            cwd=str(self.script_path.parent),
         ) as proc:
             self.process = proc
             self.is_running = True
@@ -101,26 +103,23 @@ class ScriptExecutor:
             threading.Thread(
                 target=self._read_output,
                 args=(self.process.stdout, "stdout"),
-                daemon=True
+                daemon=True,
             ).start()
-            
+
             threading.Thread(
                 target=self._read_output,
                 args=(self.process.stderr, "stderr"),
-                daemon=True
+                daemon=True,
             ).start()
 
             # Monitor thread
-            threading.Thread(
-                target=self._monitor_process,
-                daemon=True
-            ).start()
+            threading.Thread(target=self._monitor_process, daemon=True).start()
 
     def _read_output(self, pipe, stream_name):
         """Read output from the subprocess pipe."""
         try:
-            for line in iter(pipe.readline, ''):
-                line = line.rstrip('\n')
+            for line in iter(pipe.readline, ""):
+                line = line.rstrip("\n")
                 if line and not self.is_paused:
                     self.collector.add_output(line, stream_name)
                 if not self.is_running:
@@ -139,7 +138,9 @@ class ScriptExecutor:
                 self.process.stdout.close()
             if self.process.stderr:
                 self.process.stderr.close()
-            self.collector.add_output(f"Process exited with code {returncode}", "system")
+            self.collector.add_output(
+                f"Process exited with code {returncode}", "system"
+            )
         except (IOError, OSError) as e:
             self.collector.add_exception(e)
 

@@ -11,6 +11,7 @@ from .collector import DataCollector
 from .tracer import install_trace
 from .utils import kill_process_tree
 
+
 class ScriptExecutor:
     """Manages script execution and tracing."""
 
@@ -30,8 +31,8 @@ class ScriptExecutor:
             return
 
         env = os.environ.copy()
-        env['PYTHONPATH'] = str(self.script_path.parent)
-        
+        env["PYTHONPATH"] = str(self.script_path.parent)
+
         try:
             self.process = subprocess.Popen(
                 [sys.executable, str(self.script_path)] + self.script_args,
@@ -39,7 +40,7 @@ class ScriptExecutor:
                 stderr=subprocess.PIPE,
                 env=env,
                 text=True,
-                bufsize=1
+                bufsize=1,
             )
             self.is_running = True
         except Exception as e:
@@ -57,14 +58,14 @@ class ScriptExecutor:
     def pause(self) -> None:
         """Pause script execution."""
         if self.process and self.is_running:
-            if hasattr(signal, 'SIGSTOP'):
+            if hasattr(signal, "SIGSTOP"):
                 self.process.send_signal(signal.SIGSTOP)
             self.is_paused = True
 
     def resume(self) -> None:
         """Resume script execution."""
         if self.process and self.is_paused:
-            if hasattr(signal, 'SIGCONT'):
+            if hasattr(signal, "SIGCONT"):
                 self.process.send_signal(signal.SIGCONT)
             self.is_paused = False
 

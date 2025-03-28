@@ -7,9 +7,11 @@ from typing import Dict, List, Optional  # Removed "Any"
 from dataclasses import dataclass, field
 import traceback  # Moved from inside methods
 
+
 @dataclass
 class CallEvent:
     """Function call event data."""
+
     function_name: str
     filename: str
     line_no: int
@@ -18,31 +20,39 @@ class CallEvent:
     call_id: int = 0
     parent_id: Optional[int] = None
 
+
 @dataclass
 class ReturnEvent:
     """Function return event data."""
+
     function_name: str
     return_value: str
     timestamp: float = field(default_factory=time.time)
     call_id: int = 0
 
+
 @dataclass
 class ExceptionEvent:
     """Exception event data."""
+
     exception_type: str
     message: str
     traceback: List[str]
     timestamp: float = field(default_factory=time.time)
 
+
 @dataclass
 class OutputLine:
     """Output line data."""
+
     content: str
     stream: str  # 'stdout', 'stderr', or 'system'
     timestamp: float = field(default_factory=time.time)
 
+
 # Singleton collector instance
 _collector = None
+
 
 def get_collector():
     """Get or create the singleton collector instance."""
@@ -50,6 +60,7 @@ def get_collector():
     if _collector is None:
         _collector = DataCollector()
     return _collector
+
 
 class DataCollector:
     """Collects runtime data from execution."""
@@ -65,7 +76,7 @@ class DataCollector:
             "calls": [],
             "returns": [],
             "exceptions": [],
-            "output": []
+            "output": [],
         }
 
         # Instead of event_queues, use a Queue object that's not bound to any loop
@@ -79,15 +90,15 @@ class DataCollector:
     @property
     def output(self):
         return self.events["output"]
-    
+
     @property
     def calls(self):
         return self.events["calls"]
-    
+
     @property
     def returns(self):
         return self.events["returns"]
-    
+
     @property
     def exceptions(self):
         return self.events["exceptions"]
@@ -106,7 +117,9 @@ class DataCollector:
             self.loop = asyncio.new_event_loop()
             return self.loop
 
-    def add_call(self, function_name: str, filename: str, line_no: int, args: Dict[str, str]):
+    def add_call(
+        self, function_name: str, filename: str, line_no: int, args: Dict[str, str]
+    ):
         """Add a function call event."""
         with self.lock:
             parent_id = self.call_stack[-1] if self.call_stack else None
@@ -119,14 +132,14 @@ class DataCollector:
                 line_no=line_no,
                 args=args,
                 call_id=call_id,
-                parent_id=parent_id
+                parent_id=parent_id,
             )
 
             self.events["calls"].append(call)
             self.call_stack.append(call_id)
 
             # Instead of directly using run_coroutine_threadsafe, just add to the list
-            self.events_list.append(('call', call))
+            self.events_list.append(("call", call))
             self.event_ready.set()  # Signal that a new event is available
 
     def add_return(self, function_name: str, return_value: str):
@@ -139,15 +152,13 @@ class DataCollector:
             call_id = self.call_stack.pop()
 
             ret = ReturnEvent(
-                function_name=function_name,
-                return_value=return_value,
-                call_id=call_id
+                function_name=function_name, return_value=return_value, call_id=call_id
             )
 
             self.events["returns"].append(ret)
 
             # Add to event list instead of using Queue directly
-            self.events_list.append(('return', ret))
+            self.events_list.append(("return", ret))
             self.event_ready.set()
 
     def add_exception(self, exception):
@@ -155,18 +166,18 @@ class DataCollector:
         with self.lock:
             exc_type = type(exception).__name__
             message = str(exception)
-            tb_lines = traceback.format_exception(type(exception), exception, exception.__traceback__)
+            tb_lines = traceback.format_exception(
+                type(exception), exception, exception.__traceback__
+            )
 
             exc = ExceptionEvent(
-                exception_type=exc_type,
-                message=message,
-                traceback=tb_lines
+                exception_type=exc_type, message=message, traceback=tb_lines
             )
 
             self.events["exceptions"].append(exc)
 
             # Add to event list
-            self.events_list.append(('exception', exc))
+            self.events_list.append(("exception", exc))
             self.event_ready.set()
 
     def add_output(self, content: str, stream: str):
@@ -176,7 +187,7 @@ class DataCollector:
             self.events["output"].append(line)
 
             # Add to event list
-            self.events_list.append(('output', line))
+            self.events_list.append(("output", line))
             self.event_ready.set()
 
     def clear(self):
@@ -198,7 +209,7 @@ class DataCollector:
             with self.lock:
                 if self.events_list:
                     return self.events_list.pop(0)
-            
+
             # No events available, wait for the event to be set
             # Use asyncio.sleep for cooperative multitasking
             self.event_ready.wait(0.1)  # Short timeout to allow checking again

@@ -10,13 +10,15 @@ from .ui.app import PyTUIApp
 
 console = Console()
 
+
 @click.group()
 def cli():
     """Python Terminal UI for visualizing script execution."""
 
+
 @cli.command()
-@click.argument('script_path', type=click.Path(exists=True))
-@click.argument('script_args', nargs=-1)
+@click.argument("script_path", type=click.Path(exists=True))
+@click.argument("script_args", nargs=-1)
 def run(script_path, script_args):
     """Run a Python script through the TUI."""
     try:
@@ -30,6 +32,7 @@ def run(script_path, script_args):
     except Exception as e:
         console.print(f"[bold red]Unhandled error:[/bold red] {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     cli()

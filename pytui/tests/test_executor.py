@@ -119,6 +119,19 @@ def verify_collector_setup(test_state):
     executor = test_state["executor"]
     # Verify collector is initialized
     assert executor.collector is not None
+    assert executor.collector.calls is not None
+
+    # Initialize tracer with collector
+    from pytui.tracer import trace_function
+    import sys
+
+    sys.settrace(trace_function)
+
+    # Add explicit test call to verify tracing
+    def test_func():
+        pass
+
+    test_func()
 
     # Use tempfile to ensure it's imported
     temp_dir = tempfile.gettempdir()
@@ -299,8 +312,8 @@ def test_tracer_integration():
             os.unlink(trace_path)
         except (OSError, FileNotFoundError):
             pass
-            
-            
+
+
 def test_mock_executor():
     """Test using a mocked executor to ensure MagicMock is used."""
     # Create a mock executor to verify MagicMock is used
@@ -308,11 +321,11 @@ def test_mock_executor():
     mock_executor.is_running = True
     mock_executor.process = MagicMock()
     mock_executor.process.pid = 12345
-    
+
     # Test the mock
     assert mock_executor.is_running is True
     assert mock_executor.process.pid == 12345
-    
+
     # Test method calls
     mock_executor.start()
     mock_executor.start.assert_called_once()
